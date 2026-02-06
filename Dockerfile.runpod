@@ -1,0 +1,47 @@
+FROM python:3.12-slim
+
+# Set working directory
+WORKDIR /workspace
+
+# Prevent Python from writing pyc files and buffering stdout/stderr
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    DEBIAN_FRONTEND=noninteractive
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ffmpeg \
+    wget \
+    curl \
+    git \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Upgrade pip
+RUN python -m pip install --upgrade pip
+
+# Copy requirements first for better caching
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Install RunPod SDK and Whisper
+RUN pip install --no-cache-dir runpod openai-whisper
+
+# Pre-download Whisper model (base model for balance of speed/accuracy)
+# This happens during build time, so cold starts are faster
+RUN python -c "import whisper; whisper.load_model('base')"
+
+# Copy application code
+COPY handler.py ./
+COPY app/ ./app/
+COPY shared_lib/ ./shared_lib/
+COPY streamqueue/ ./streamqueue/
+
+# Set Python path
+ENV PYTHONPATH=/workspace
+
+# Create directories for temporary audio storage
+RUN mkdir -p /tmp/audio/raw /tmp/audio/segments
+
+# The handler will be started by RunPod
+CMD ["python", "handler.py"]
