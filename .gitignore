@@ -23,3 +23,5 @@ venv/
 *.webm
 /data/
 /tmp/
+test_runpod.ps1
+deploy.ps1
